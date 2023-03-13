@@ -3,6 +3,7 @@ package mockoidc
 import (
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -23,6 +24,7 @@ type Session struct {
 type SessionStore struct {
 	Store     map[string]*Session
 	CodeQueue *CodeQueue
+	mu        sync.RWMutex
 }
 
 // IDTokenClaims are the mandatory claims any User.Claims implementation
@@ -55,6 +57,9 @@ func (ss *SessionStore) NewSession(scope string, nonce string, user User, codeCh
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
 	}
+
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	ss.Store[sessionID] = session
 
 	return session, nil
@@ -62,6 +67,8 @@ func (ss *SessionStore) NewSession(scope string, nonce string, user User, codeCh
 
 // GetSessionByID looks up the Session
 func (ss *SessionStore) GetSessionByID(id string) (*Session, error) {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
 	session, ok := ss.Store[id]
 	if !ok {
 		return nil, errors.New("session not found")
